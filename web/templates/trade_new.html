@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}記一筆 - 投資機器人{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>記一筆交易</h1>
+</div>
+
+{% if saved %}<div class="badge ok" style="margin-bottom:14px">已記錄。</div>{% endif %}
+{% if error %}<div class="field-error" style="margin-bottom:14px">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>交易明細</h2>
+  <div class="warn-box">
+    賣出衛星資產時請注意下方的「全部出場 (平倉)」開關 —— 這是一個明確的選項，
+    而不是根據目前持倉數字自動判斷，因為持倉快照可能落後於真實成交
+    （race condition：你可能剛好在下一次 tick 更新持倉之前來記錄這筆賣出）。
+    請自行確認這筆賣出是否清空了整個部位。
+  </div>
+  <form method="post" id="trade-form">
+    <div class="form-row">
+      <div class="field">
+        <label>代號</label>
+        <input type="text" name="ticker" id="ticker" required maxlength="10">
+      </div>
+      <div class="field">
+        <label>買賣別</label>
+        <select name="side" id="side" required>
+          <option value="Buy">買進 (Buy)</option>
+          <option value="Sell">賣出 (Sell)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>券商</label>
+        <select name="broker" required>
+          <option value="IBKR">IBKR</option>
+          <option value="Kraken">Kraken</option>
+          <option value="Manual">Manual</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>數量</label>
+        <input type="number" step="any" name="qty" id="qty" required>
+      </div>
+      <div class="field">
+        <label>價格</label>
+        <input type="number" step="any" name="price" required>
+      </div>
+      <div class="field">
+        <label>手續費</label>
+        <input type="number" step="any" name="fee" value="0">
+      </div>
+      <div class="field">
+        <label>成交日期</label>
+        <input type="date" name="date" required>
+      </div>
+    </div>
+
+    <div id="full-exit-box" class="warn-box" style="display:none;">
+      <label style="display:flex;align-items:flex-start;gap:8px;font-weight:normal;color:var(--ink-2)">
+        <input type="checkbox" name="full_exit" id="full_exit" style="width:auto;margin-top:3px">
+        <span>全部出場 (平倉) —— 會重置該衛星資產的加碼階梯與 base price，並把賣出淨額歸還衛星資金池</span>
+      </label>
+      <div class="sub" id="full-exit-hint" style="margin-top:6px"></div>
+    </div>
+
+    <button class="btn" type="submit">送出</button>
+  </form>
+</div>
+
+<script>
+  // Small vanilla-JS suggestion only (no htmx needed here per PLAN_V3.md --
+  // "do NOT overbuild"): show the full-exit toggle only for a Sell, and
+  // pre-suggest it checked when the entered qty matches the last-known
+  // positions qty for that ticker. The suggestion is just a default --
+  // the user must still explicitly confirm/uncheck it (see the race-
+  // condition note above the form).
+  const POSITIONS = {{ positions | tojson }};
+
+  const tickerEl = document.getElementById('ticker');
+  const sideEl = document.getElementById('side');
+  const qtyEl = document.getElementById('qty');
+  const box = document.getElementById('full-exit-box');
+  const checkbox = document.getElementById('full_exit');
+  const hint = document.getElementById('full-exit-hint');
+
+  function refresh() {
+    if (sideEl.value !== 'Sell') {
+      box.style.display = 'none';
+      checkbox.checked = false;
+      return;
+    }
+    box.style.display = 'block';
+    const ticker = tickerEl.value.trim().toUpperCase();
+    const pos = POSITIONS[ticker];
+    if (pos && qtyEl.value && Math.abs(parseFloat(qtyEl.value) - pos.qty) < 1e-6) {
+      checkbox.checked = true;
+      hint.textContent = '目前持倉數量 ' + pos.qty + '，與輸入數量相符，已預先勾選（可自行取消）。';
+    } else if (pos) {
+      hint.textContent = '目前持倉數量 ' + pos.qty + '。';
+    } else {
+      hint.textContent = '';
+    }
+  }
+
+  sideEl.addEventListener('change', refresh);
+  qtyEl.addEventListener('input', refresh);
+  tickerEl.addEventListener('input', refresh);
+</script>
+{% endblock %}

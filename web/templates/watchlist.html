@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}觀察清單 - 投資機器人{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>觀察清單</h1>
+</div>
+
+<div class="card">
+  <h2>新增資產</h2>
+  {% if error %}<div class="field-error" style="margin-bottom:14px">{{ error }}</div>{% endif %}
+  <form method="post">
+    <div class="form-row">
+      <div class="field">
+        <label>代號</label>
+        <input type="text" name="ticker" required maxlength="10" placeholder="例如 QQQ">
+      </div>
+      <div class="field">
+        <label>資產類型</label>
+        <select name="asset_type" required>
+          <option value="Core">Core</option>
+          <option value="Satellite">Satellite</option>
+          <option value="Cash">Cash</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Tier (僅 Satellite 需要)</label>
+        <select name="tier">
+          <option value="">—</option>
+          <option value="T1">T1</option>
+          <option value="T2">T2</option>
+          <option value="T3">T3</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>價格來源</label>
+        <select name="price_source">
+          <option value="yahoo">yahoo</option>
+          <option value="kraken">kraken</option>
+          <option value="skip">skip</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn" type="submit">新增</button>
+  </form>
+</div>
+
+<div class="card card-flush">
+  <h2 style="margin-bottom:12px">目前清單</h2>
+  {% if assets %}
+  <div class="tbl-wrap">
+    <table class="data">
+      <thead><tr><th>代號</th><th>類型</th><th>Tier</th><th>價格來源</th><th class="num">現價</th><th></th></tr></thead>
+      <tbody>
+        {% for a in assets %}
+        <tr>
+          <td class="ticker-cell">{{ a.ticker }}</td>
+          <td><span class="pill">{{ a.asset_type }}</span></td>
+          <td>{{ a.tier or "—" }}</td>
+          <td>{{ a.price_source }}</td>
+          <td class="num">{% if a.current_price is not none %}${{ "%.2f"|format(a.current_price) }}{% else %}—{% endif %}</td>
+          <td>
+            <form method="post" action="{{ url_for('web.watchlist_delete', ticker=a.ticker) }}"
+                  onsubmit="return confirm('確定要移除 {{ a.ticker }} 嗎？');">
+              <button type="submit" class="btn secondary sm">移除</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted-note" style="padding:0 20px 18px">觀察清單為空。</p>{% endif %}
+</div>
+{% endblock %}

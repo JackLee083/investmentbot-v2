@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}設定 - 投資機器人{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>策略設定</h1>
+</div>
+
+<div class="card">
+  <h2>參數</h2>
+  <p class="muted-note" style="margin-top:-8px">修改後於下一次 tick 生效，不需要重啟服務。</p>
+  {% if saved %}<div class="badge ok" style="margin-bottom:14px">已儲存。</div>{% endif %}
+
+  <form method="post">
+    {% for key, spec in fields.items() %}
+    <div class="field">
+      <label for="{{ key }}">{{ spec.label }} ({{ key }})</label>
+      <input type="text" id="{{ key }}" name="{{ key }}" value="{{ current[key] }}">
+      {% if errors.get(key) %}<div class="field-error">{{ errors[key] }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <button class="btn" type="submit">儲存</button>
+  </form>
+</div>
+{% endblock %}

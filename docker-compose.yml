@@ -1,0 +1,99 @@
+services:
+  investment-bot:
+    build: .
+    container_name: investment-bot
+    restart: always
+    env_file: .env
+    expose:
+      - "5000"                       # no published port; tunnel reaches it over the compose network
+    volumes:
+      - ./var:/app/var
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+    # /healthz returns 503 when the scheduler is dead or the last tick is >7h old (see PLAN_V3.md
+    # §5 routes), so this check catches "web alive but trading silently stopped" -- urlopen raises
+    # on 503.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:5000/healthz', timeout=5)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - autoheal=true
+    depends_on:
+      - ib-gateway
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    restart: always
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}   # rotated; CF hostname -> http://investment-bot:5000 (CF
+                                        # Access must cover this hostname)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  ib-gateway:
+    image: ghcr.io/gnzsnz/ib-gateway:stable
+    container_name: ib-gateway
+    restart: always
+    platform: linux/arm64
+    environment:
+      TWS_USERID: ${TWS_USERID}
+      TWS_PASSWORD: ${TWS_PASSWORD}
+      TRADING_MODE: ${TRADING_MODE}          # env-driven: paper during Phase 5/6 testing, flip to
+                                              # "live" in .env at cutover (PLAN_V3.md §6 Phase 6)
+      TWOFA_TIMEOUT_ACTION: restart          # keep re-pushing IB Key until user taps
+      RELOGIN_AFTER_TWOFA_TIMEOUT: "yes"
+      AUTO_RESTART_TIME: "11:45 PM"          # daily restart w/o 2FA; weekly full auth lands Sunday
+      TWS_ACCEPT_INCOMING: accept
+      EXISTING_SESSION_DETECTED_ACTION: primary
+      READ_ONLY_API: "no"
+      TZ: America/New_York
+      VNC_SERVER_PASSWORD: ${VNC_PASSWORD}   # rotated
+    # NO published ports (removes 4001/4002/5900 from public VPS).
+    # Bot: IBKR_HOST=ib-gateway, IBKR_PORT=4003 (live socat port inside container; paper=4004).
+    # VERIFY on VPS: docker exec ib-gateway ss -tlnp (image versions differ on internal ports).
+    # VNC only via SSH tunnel when needed.
+    #
+    # DELIBERATELY NO autoheal LABEL and NO healthcheck AT ALL (user decision):
+    # during the weekly Sunday 2FA wait the API port is DOWN BY DESIGN until the user taps
+    # IB Key. A port-based healthcheck + autoheal would repeatedly kill the container mid-wait,
+    # interrupting the IBC relogin loop and re-triggering 2FA pushes in a loop -- destroying the
+    # hands-off goal every Sunday. Recovery layers instead: IBC's own retry loop (2FA/timeouts),
+    # Docker `restart: always` (container exit), and the bot's LINE disconnect alerts (human).
+    # No informational healthcheck either: its only consumer would have been `docker ps`, where
+    # it would show "unhealthy" every night at the 23:45 restart and all of Sunday's 2FA wait --
+    # a false alarm by design. Gateway status lives on the dashboard /system page instead
+    # (the bot's own TCP probe + ib_disconnect_since tracking).
+    volumes:
+      - ibkr_data:/home/ibgateway/Jts
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  autoheal:                                  # restarts the BOT only (label on investment-bot);
+    image: willfarrell/autoheal:latest       # ib-gateway is intentionally excluded -- see above
+    container_name: autoheal
+    restart: always
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_START_PERIOD=300
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  ibkr_data:

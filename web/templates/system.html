@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}系統 - 投資機器人{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>系統狀態</h1>
+</div>
+
+<div class="stat-grid">
+  <div class="stat">
+    <div class="label">最近一次 Tick</div>
+    <div class="value">
+      {% if last_tick_ok is none %}—
+      {% elif last_tick_ok %}<span class="badge ok">成功</span>
+      {% else %}<span class="badge warn">失敗</span>{% endif %}
+    </div>
+    <div class="delta sub">結束於 {{ (last_tick_finished or "尚無資料") }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">IB Gateway 連線 ({{ gateway_host }}:{{ gateway_port }})</div>
+    <div class="value">
+      {% if gateway_up %}<span class="badge ok">連線正常</span>{% else %}<span class="badge warn">無法連線</span>{% endif %}
+    </div>
+    <div class="delta sub">斷線起始時間: {{ ib_disconnect_since or "無" }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">資料庫大小</div>
+    <div class="value">{{ "%.2f"|format(db_size_bytes / 1024 / 1024) }} MB</div>
+    <div class="delta sub">最新備份: {{ last_backup or "尚無備份" }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>最近一次 Tick 詳情</h2>
+  <p>開始時間: {{ last_tick_started or "尚無資料" }}</p>
+  <p>結束時間: {{ last_tick_finished or "尚無資料" }}</p>
+  <p>
+    結果:
+    {% if last_tick_ok is none %}—
+    {% elif last_tick_ok %}<span class="badge ok">成功</span>
+    {% else %}<span class="badge warn">失敗</span>{% endif %}
+  </p>
+  {% if last_tick_error %}<p class="sub">錯誤訊息: {{ last_tick_error }}</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>IB Gateway 連線</h2>
+  <p>
+    TCP 探測 ({{ gateway_host }}:{{ gateway_port }}):
+    {% if gateway_up %}<span class="badge ok">連線正常</span>{% else %}<span class="badge warn">無法連線</span>{% endif %}
+  </p>
+  <p>斷線起始時間: {{ ib_disconnect_since or "無" }}</p>
+  <p>已發送斷線警告: {{ "是" if ib_disconnect_alerted else "否" }}</p>
+</div>
+
+<div class="card">
+  <h2>通知收件人設定檢查</h2>
+  {% for key, count in recipients.items() %}
+  <p>
+    {{ key }}: {{ count }} 位
+    {% if count == 0 %}<span class="badge warn">（清單為空，將不會收到通知）</span>{% endif %}
+  </p>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h2>資料庫</h2>
+  <p>檔案大小: {{ "%.2f"|format(db_size_bytes / 1024 / 1024) }} MB</p>
+  <p>最新備份: {{ last_backup or "尚無備份" }}</p>
+</div>
+
+<div class="card card-flush">
+  <h2 style="margin-bottom:12px">最近通知紀錄</h2>
+  {% if notifications %}
+  <div class="tbl-wrap">
+    <table class="data">
+      <thead><tr><th>種類</th><th>訊息</th><th>成功</th><th>時間</th></tr></thead>
+      <tbody>
+        {% for n in notifications %}
+        <tr>
+          <td><span class="pill">{{ n.kind }}</span></td>
+          <td>{{ n.message }}</td>
+          <td>{% if n.ok %}<span class="badge ok">是</span>{% else %}<span class="badge warn">否</span>{% endif %}</td>
+          <td class="sub">{{ n.sent_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted-note" style="padding:0 20px 18px">尚無通知紀錄。</p>
+  {% endif %}
+</div>
+{% endblock %}

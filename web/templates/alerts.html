@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}快訊 - 投資機器人{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>價格快訊</h1>
+</div>
+
+{% if saved %}<div class="badge ok" style="margin-bottom:14px">已新增。</div>{% endif %}
+
+<div class="card">
+  <h2>新增快訊</h2>
+  {% if error %}<div class="field-error" style="margin-bottom:14px">{{ error }}</div>{% endif %}
+  <form method="post">
+    <div class="form-row">
+      <div class="field">
+        <label>代號</label>
+        <input type="text" name="ticker" required maxlength="10">
+      </div>
+      <div class="field">
+        <label>目標價格</label>
+        <input type="number" step="any" name="target_price" required>
+      </div>
+      <div class="field">
+        <label>方向 (留空則依現價自動判斷)</label>
+        <select name="direction">
+          <option value="">自動判斷</option>
+          <option value="Above">漲破 (Above)</option>
+          <option value="Below">跌破 (Below)</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn" type="submit">新增快訊</button>
+  </form>
+</div>
+
+<div class="card card-flush">
+  <h2 style="margin-bottom:12px">啟用中的快訊</h2>
+  {% if alerts %}
+  <div class="tbl-wrap">
+    <table class="data">
+      <thead><tr><th>代號</th><th>方向</th><th class="num">目標價格</th><th>建立時間</th><th></th></tr></thead>
+      <tbody>
+        {% for a in alerts %}
+        <tr>
+          <td class="ticker-cell">{{ a.ticker }}</td>
+          <td><span class="pill">{{ a.direction }}</span></td>
+          <td class="num">${{ "%.2f"|format(a.target_price) }}</td>
+          <td class="sub">{{ a.created_at }}</td>
+          <td>
+            <form method="post" action="{{ url_for('web.alerts_cancel', alert_id=a.id) }}">
+              <button type="submit" class="btn secondary sm">取消</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted-note" style="padding:0 20px 18px">尚無啟用中的快訊。</p>{% endif %}
+</div>
+{% endblock %}

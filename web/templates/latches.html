@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}通知開關 - 投資機器人{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>通知開關 (Latches)</h1>
+</div>
+<p class="muted-note">
+  每個 (代號, 種類, 等級) 組合都是一個獨立的開關：已觸發且尚未重新啟用 (armed)
+  的組合不會再次發出通知，直到重新啟用為止。
+</p>
+
+<div class="card card-flush">
+  <h2 style="margin-bottom:12px">目前狀態</h2>
+  {% if latches %}
+  <div class="tbl-wrap">
+    <table class="data">
+      <thead><tr><th>代號</th><th>種類</th><th>等級</th><th>觸發時間</th><th>重新啟用時間</th><th></th></tr></thead>
+      <tbody>
+        {% for l in latches %}
+        <tr>
+          <td class="ticker-cell">{{ l.ticker }}</td>
+          <td><span class="pill">{{ l.kind }}</span></td>
+          <td>{{ l.level }}</td>
+          <td class="sub">{{ l.fired_at }}</td>
+          <td>{% if l.rearmed_at %}<span class="sub">{{ l.rearmed_at }}</span>{% else %}<span class="badge warn">尚未重新啟用（已鎖定）</span>{% endif %}</td>
+          <td>
+            {% if not l.rearmed_at %}
+            <form method="post" action="{{ url_for('web.latches_rearm') }}">
+              <input type="hidden" name="ticker" value="{{ l.ticker }}">
+              <input type="hidden" name="kind" value="{{ l.kind }}">
+              <input type="hidden" name="level" value="{{ l.level }}">
+              <button type="submit" class="btn secondary sm">重新啟用</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted-note" style="padding:0 20px 18px">目前沒有任何開關紀錄。</p>{% endif %}
+</div>
+
+<div class="section-title">重置衛星策略狀態（恢復用）</div>
+<div class="card">
+  <div class="warn-box">
+    <strong>注意：</strong>此按鈕只會重置 entry_count / base_price / ATR / 監控反轉 / 所有通知開關，
+    <strong>不會</strong>把資金歸還衛星資金池。資金歸還請透過「記一筆」頁面的
+    Sell + 全部出場 (平倉) 流程處理。此按鈕僅用於修正被誤記為「部分賣出」的全部出場等異常狀態。
+  </div>
+  <form method="post" action="{{ url_for('web.latches_reset_satellite') }}">
+    <div class="field">
+      <label>選擇要重置的衛星資產</label>
+      <select name="ticker" required>
+        {% for s in satellites %}
+        <option value="{{ s.ticker }}">{{ s.ticker }} (entry_count={{ s.entry_count }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn danger"
+            onclick="return confirm('確定要重置此衛星資產的策略狀態嗎？此動作不會歸還資金池。');">
+      重置策略狀態
+    </button>
+  </form>
+</div>
+{% endblock %}

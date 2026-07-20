@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登入 - 投資機器人 Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('web.static', filename='app.css') }}">
+  <script>
+    (function () {
+      try { var t = localStorage.getItem("theme");
+        if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="brand" style="font-size:18px"><span class="logo">📈</span><span>投資機器人</span></div>
+      <p class="muted-note" style="margin-top:4px">Cloudflare Access 通過後，請輸入儀表板密碼。</p>
+      {% if error %}<div class="warn-box" style="color:var(--bad)">{{ error }}</div>{% endif %}
+      <form method="post" style="margin-top:18px">
+        <div class="field">
+          <label for="password">密碼</label>
+          <input type="password" id="password" name="password" required autofocus>
+        </div>
+        <button class="btn block" type="submit">登入</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

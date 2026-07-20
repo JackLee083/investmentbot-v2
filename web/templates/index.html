@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}總覽 - 投資機器人{% endblock %}
+{% block content %}
+
+{# ---- derive portfolio-level numbers from holdings (no view change) ---- #}
+{% set ns = namespace(pnl=0.0, cost=0.0, mv=0.0) %}
+{% for h in holdings %}
+  {% if h.u_pnl is not none %}{% set ns.pnl = ns.pnl + h.u_pnl %}{% endif %}
+  {% set ns.cost = ns.cost + (h.qty * h.avg_cost) %}
+{% endfor %}
+{% set total_ret = (ns.pnl / ns.cost * 100) if ns.cost else None %}
+{% set cat = ['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c7)','var(--c8)'] %}
+
+<div class="page-head">
+  <h1>總覽</h1>
+  <div class="topbar-actions">
+    <form method="post" action="{{ url_for('web.refresh') }}">
+      <button class="btn secondary sm" type="submit">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+        立即更新
+      </button>
+    </form>
+  </div>
+</div>
+
+{# ---- KPI tiles ---- #}
+<div class="stat-grid">
+  <div class="stat hero">
+    <div class="label">淨清算價值 (Net Liq)</div>
+    <div class="value">{% if net_liq is not none %}${{ "{:,.0f}".format(net_liq) }}{% else %}—{% endif %}</div>
+    {% if total_ret is not none %}
+      <div class="delta {{ 'up' if ns.pnl >= 0 else 'down' }}">
+        {{ '▲' if ns.pnl >= 0 else '▼' }} ${{ "{:,.0f}".format(ns.pnl|abs) }} ({{ "%.1f"|format(total_ret) }}%) 未實現
+      </div>
+    {% endif %}
+  </div>
+  <div class="stat">
+    <div class="label">現金 (Cash)</div>
+    <div class="value">{% if cash is not none %}${{ "{:,.0f}".format(cash) }}{% else %}—{% endif %}</div>
+    <div class="delta"><span class="sub">更新於 {{ (account_updated_at or '—')[:16].replace('T',' ') }}
+      {% if account_stale %}<span class="badge warn">已過期</span>{% endif %}</span></div>
+  </div>
+  <div class="stat">
+    <div class="label">未實現損益</div>
+    <div class="value {{ 'up' if ns.pnl >= 0 else 'down' }}">{{ '+' if ns.pnl >= 0 else '−' }}${{ "{:,.0f}".format(ns.pnl|abs) }}</div>
+    {% if total_ret is not none %}<div class="delta {{ 'up' if ns.pnl >= 0 else 'down' }}">報酬率 {{ "%.1f"|format(total_ret) }}%</div>{% endif %}
+  </div>
+  <div class="stat">
+    <div class="label">衛星資金池</div>
+    <div class="value">${{ "{:,.0f}".format(pools.satellite_pool) }}</div>
+    <div class="delta"><span class="sub">QQQ ${{ "%.0f"|format(pools.qqq_pool) }} · 個股 ${{ "%.0f"|format(pools.stock_pool) }}</span></div>
+  </div>
+</div>
+
+{# ---- allocation 100% stacked bar ---- #}
+{% if holdings %}
+<div class="card">
+  <h2>資產配置</h2>
+  <div class="alloc">
+    {% for h in holdings %}
+      {% if h.weight_pct %}<span title="{{ h.ticker }} {{ '%.1f'|format(h.weight_pct) }}%"
+        style="width:{{ h.weight_pct }}%;background:{{ cat[loop.index0 % 8] }}"></span>{% endif %}
+    {% endfor %}
+  </div>
+  <div class="alloc-legend">
+    {% for h in holdings %}
+      {% if h.weight_pct %}<span class="item"><span class="dot" style="background:{{ cat[loop.index0 % 8] }}"></span>
+        {{ h.ticker }} <b>{{ "%.1f"|format(h.weight_pct) }}%</b></span>{% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ---- holdings table ---- #}
+<div class="card card-flush">
+  <h2 style="margin-bottom:12px">持倉</h2>
+  {% if holdings %}
+  <div class="tbl-wrap">
+    <table class="data">
+      <thead><tr>
+        <th>代號</th><th>券商</th><th class="num">數量</th><th class="num">均價</th>
+        <th class="num">現價</th><th class="num">未實現損益</th><th class="num">報酬率</th><th>權重</th>
+      </tr></thead>
+      <tbody>
+        {% for h in holdings %}
+        <tr>
+          <td class="ticker-cell">{{ h.ticker }}</td>
+          <td><span class="pill">{{ h.broker }}</span></td>
+          <td class="num">{{ "%.4f"|format(h.qty) }}</td>
+          <td class="num">${{ "%.2f"|format(h.avg_cost) }}</td>
+          <td class="num">{% if h.price is not none %}${{ "%.2f"|format(h.price) }}{% else %}—{% endif %}</td>
+          <td class="num {{ 'up' if (h.u_pnl or 0) >= 0 else 'down' }}">
+            {% if h.u_pnl is not none %}{{ '+' if h.u_pnl >= 0 else '−' }}${{ "%.2f"|format(h.u_pnl|abs) }}{% else %}—{% endif %}</td>
+          <td class="num {{ 'up' if (h.return_pct or 0) >= 0 else 'down' }}">
+            {% if h.return_pct is not none %}{{ "%.1f"|format(h.return_pct) }}%{% else %}—{% endif %}</td>
+          <td>
+            {% if h.weight_pct is not none %}
+            <span class="wbar"><i style="width:{{ h.weight_pct }}%"></i></span>
+            <span class="sub" style="margin-left:6px">{{ "%.1f"|format(h.weight_pct) }}%</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted-note" style="padding:0 20px 18px">尚無持倉資料。</p>{% endif %}
+</div>
+
+{# ---- market indicators ---- #}
+<div class="section-title">市場指標</div>
+<div class="ind-grid">
+  {% for ind in indicators %}
+  <div class="ind">
+    <div class="top">
+      <span class="name">{{ ind.label }}</span>
+      <span class="val">{% if ind.value is not none %}{{ "%.1f"|format(ind.value) }}{% else %}—{% endif %}</span>
+    </div>
+    {% if ind.name in ('cnn_fng','crypto_fng') and ind.value is not none %}
+      {% set v = ind.value %}
+      {% set mc = 'var(--bad)' if v < 25 else ('var(--c8)' if v < 45 else ('var(--muted)' if v < 55 else ('var(--c2)' if v < 75 else 'var(--good)'))) %}
+      <div class="meter"><i style="width:{{ v }}%;background:{{ mc }}"></i></div>
+      <div class="foot"><span>極度恐懼</span><span>極度貪婪</span></div>
+    {% elif ind.name == 'vix' and ind.value is not none %}
+      {% set vp = (ind.value / 45 * 100) if ind.value < 45 else 100 %}
+      <div class="meter"><i style="width:{{ vp }}%;background:var(--c3)"></i></div>
+      <div class="foot"><span>平穩</span><span>恐慌</span></div>
+    {% else %}
+      <div class="foot" style="justify-content:flex-start">
+        {% if not ind.ok %}<span class="badge warn">抓取失敗</span>{% elif ind.stale %}<span class="badge warn">已過期</span>{% else %}<span class="badge ok">正常</span>{% endif %}
+      </div>
+    {% endif %}
+    <div class="foot"><span>{{ (ind.fetched_at or '尚無資料')[:16] }}</span>
+      {% if ind.name in ('cnn_fng','crypto_fng','vix') %}{% if not ind.ok %}<span class="badge warn">失敗</span>{% elif ind.stale %}<span class="badge warn">過期</span>{% endif %}{% endif %}</div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ---- satellite strategy ---- #}
+<div class="section-title">衛星策略</div>
+<div class="card card-flush">
+  {% if satellites %}
+  <div class="tbl-wrap">
+    <table class="data">
+      <thead><tr><th>代號</th><th>Tier</th><th class="num">已加碼</th><th class="num">下一進場價</th><th class="num">下一進場金額</th></tr></thead>
+      <tbody>
+        {% for s in satellites %}
+        <tr>
+          <td class="ticker-cell">{{ s.ticker }}</td>
+          <td><span class="pill">{{ s.tier or '—' }}</span></td>
+          <td class="num">{{ s.entry_count }} / 3</td>
+          <td class="num">{% if s.next_price is not none %}${{ "%.2f"|format(s.next_price) }}{% else %}<span class="badge muted">已滿倉</span>{% endif %}</td>
+          <td class="num">{% if s.next_amount is not none %}${{ "%.2f"|format(s.next_amount) }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted-note" style="padding:16px 20px">尚無衛星策略資產。</p>{% endif %}
+</div>
+
+{% endblock %}
